@@ -9,8 +9,22 @@ import pandas as pd
 class Playlistdownloader:
     """A class for downloading playlists from the Muziekweb website."""
 
-    @staticmethod
-    def create_url(date: datetime.datetime, musicstation: str = "SkyRadio") -> str:
+    _available_radio_stations = [
+        "3fm",
+        "classicnl",
+        "concertzender",
+        "funx",
+        "kx radio",
+        "q-music",
+        "radio 2",
+        "radio 538",
+        "skyradio",
+        "sublime",
+    ]
+
+    def create_url(
+        self, date: datetime.datetime, musicstation: str = "SkyRadio"
+    ) -> str:
         """Find URL containing the playlist on Muziekweb
 
         Parameters
@@ -19,11 +33,19 @@ class Playlistdownloader:
                 The date for which to create the URL.
             musicstation (str, optional):
                 The name of the music station. Defaults to "SkyRadio".
+                Must be one of the available stations of Muziekweb: 3FM, ClassicNL,
+                Concertzender, FunX, KX Radio, Q-Music, Radio 2, Radio 538, SkyRadio
+                or Sublime.
+
 
         Returns:
         --------
             str: The URL for the given date and music station.
         """
+        if musicstation.lower() not in self._available_radio_stations:
+            raise ValueError(
+                f"Musicstation must be in {self._available_radio_stations}, not {musicstation!r}"
+            )
 
         datestr = f"date={date.day}-{date.month}-{date.year}"
         stationstr = f"station={musicstation}"
@@ -87,37 +109,46 @@ class Playlistdownloader:
         ).text.strip()
         return result
 
-    def get_playlist_for_date(self, date: datetime.datetime) -> pd.DataFrame:
+    def get_playlist_for_date(
+        self, date: datetime.datetime | str, musicstation: str = "SkyRadio"
+    ) -> pd.DataFrame:
         """Gets the playlist for the given date.
 
         Parameters
         ----------
             date (datetime): The date for which to get the playlist.
+            musicstation (str): One of the available radio stations for Muziekweb
 
         Returns
         -------
             pandas.DataFrame: A Pandas DataFrame containing the playlist for the given date.
         """
-        url = self.create_url(date)
+        date = pd.to_datetime(date)
+        url = self.create_url(date, musicstation)
         soup = self.url_to_soup(url)
         rows = self.find_all_rows(soup)
         playlist = [self.row_to_dct(row) for row in rows]
         return pd.DataFrame(playlist).assign(Date=date)
 
     def get_playlist_period(
-        self, date_start: datetime.datetime, date_end: datetime.datetime
+        self,
+        date_start: datetime.datetime | str,
+        date_end: datetime.datetime | str,
+        musicstation: str = "SkyRadio",
     ) -> pd.DataFrame:
         """Gets the playlist for the given period.
 
         Args:
             date_start (datetime): The start of the period for which to get the playlist.
             date_end (datetime): The end of the period for which to get the playlist.
+            musicstation (str): One of the available radio stations for Muziekweb
 
         Returns:
             pandas.DataFrame: A Pandas DataFrame containing the playlist for the given period.
         """
 
         dfs = [
-            self.get_playlist_for_date(d) for d in pd.date_range(date_start, date_end)
+            self.get_playlist_for_date(d, musicstation)
+            for d in pd.date_range(date_start, date_end)
         ]
         return pd.concat(dfs, ignore_index=True)
